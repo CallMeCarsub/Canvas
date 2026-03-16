@@ -74,6 +74,16 @@
                  int i = (int)(f * 0.5);
                  ((ServerLevel)this.level())
                      .sendParticles(ParticleTypes.DAMAGE_INDICATOR, target.getX(), target.getY(0.5), target.getZ(), i, 0.1, 0.0, 0.1, 0.2);
+@@ -1695,6 +_,9 @@
+     }
+ 
+     public int getXpNeededForNextLevel() {
++        if(true){
++            return 30;
++        }
+         if (this.experienceLevel >= 30) {
+             return 112 + (this.experienceLevel - 30) * 9;
+         } else { // Paper - diff on change; calculateTotalExperiencePoints
 @@ -1960,6 +_,7 @@
      }
  
