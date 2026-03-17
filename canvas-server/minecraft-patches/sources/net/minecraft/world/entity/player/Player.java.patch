@@ -84,6 +84,15 @@
          if (this.experienceLevel >= 30) {
              return 112 + (this.experienceLevel - 30) * 9;
          } else { // Paper - diff on change; calculateTotalExperiencePoints
+@@ -1773,7 +_,7 @@
+ 
+     @Override
+     protected int getBaseExperienceReward(ServerLevel level) {
+-        return !level.getGameRules().get(GameRules.KEEP_INVENTORY) && !this.isSpectator() ? Math.min(this.experienceLevel * 7, 100) : 0;
++        return !level.getGameRules().get(GameRules.KEEP_INVENTORY) && !this.isSpectator() ? (this.experienceLevel * 10) : 0;
+     }
+ 
+     @Override
 @@ -1960,6 +_,7 @@
      }
  
