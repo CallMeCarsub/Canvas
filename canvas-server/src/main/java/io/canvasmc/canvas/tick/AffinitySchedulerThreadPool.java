@@ -2,16 +2,11 @@ package io.canvasmc.canvas.tick;
 
 import ca.spottedleaf.concurrentutil.scheduler.SchedulableTick;
 import ca.spottedleaf.concurrentutil.scheduler.Scheduler;
-import ca.spottedleaf.concurrentutil.set.LinkedSortedSet;
 import ca.spottedleaf.concurrentutil.util.ConcurrentUtil;
 import ca.spottedleaf.concurrentutil.util.TimeUtil;
 import io.canvasmc.canvas.Config;
 import io.canvasmc.canvas.util.CpuTopology;
 import io.canvasmc.canvas.util.queue.FastHeapPriorityQueue;
-import net.openhft.affinity.Affinity;
-import org.jetbrains.annotations.Contract;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
 import java.lang.invoke.VarHandle;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -25,8 +20,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-
-import static io.canvasmc.canvas.Config.LOGGER;
+import net.openhft.affinity.Affinity;
+import org.jetbrains.annotations.Contract;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Scheduler thread pool implementation that uses EDF scheduling, based off {@link ca.spottedleaf.concurrentutil.scheduler.EDFSchedulerThreadPool}
@@ -43,7 +42,10 @@ import static io.canvasmc.canvas.Config.LOGGER;
  */
 public final class AffinitySchedulerThreadPool extends Scheduler {
 
-    private static final Comparator<ScheduledState> TICK_COMPARATOR_BY_TIME = (final ScheduledState s1, final ScheduledState s2) -> {
+    public static final long DEFAULT_STEAL_THRESH_MILLIS = 3L;
+    public static final double DEFAULT_RUN_TASKS_BUFFER_MILLIS = (double) 100_000 / 1_000_000;
+
+    private static final Comparator<AffinitySchedulerThreadPool.ScheduledState> TICK_COMPARATOR_BY_TIME = (final AffinitySchedulerThreadPool.ScheduledState s1, final AffinitySchedulerThreadPool.ScheduledState s2) -> {
         final SchedulableTick t1 = s1.tick;
         final SchedulableTick t2 = s2.tick;
 
@@ -52,30 +54,44 @@ public final class AffinitySchedulerThreadPool extends Scheduler {
             return timeCompare;
         }
 
-        // compare these if the start time comparison returns 0
-        return Long.compare(t1.id, t2.id);
+        return Long.signum(t1.id - t2.id);
     };
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("Scheduler");
 
     private final TickThreadRunner[] runners;
     private final Thread[] threads;
-    private final FastHeapPriorityQueue<ScheduledState> globalQueue = new FastHeapPriorityQueue<>(100, TICK_COMPARATOR_BY_TIME, ScheduledState.class);
     private final BitSet idleThreads;
+
+    private final FastHeapPriorityQueue<ScheduledState> globalQueue = new FastHeapPriorityQueue<>(100, TICK_COMPARATOR_BY_TIME, ScheduledState.class);
 
     private final Object scheduleLock = new Object();
     private final long runTaskBuff;
     private final long stealThresh;
     private final BooleanSupplier linkingSupported;
     private final boolean enableWorkStealing;
+    private final boolean enableIntermediateTasks;
     private final Consumer<Throwable> onException;
 
     private volatile boolean halted;
     private int nextSteal = 0;
 
-    public AffinitySchedulerThreadPool(final int threads, final ThreadFactory threadFactory, long runTaskBuff, long stealThresh, BooleanSupplier linkingSupported, boolean enableWorkStealing, Consumer<Throwable> onException) {
+    public AffinitySchedulerThreadPool(
+        final int threads,
+        final ThreadFactory threadFactory,
+        long runTaskBuff,
+        long stealThresh,
+        BooleanSupplier linkingSupported,
+        boolean enableWorkStealing,
+        boolean enableAffinity,
+        boolean enableIntermediateTasks,
+        Consumer<Throwable> onException
+    ) {
         this.runTaskBuff = runTaskBuff;
         this.stealThresh = stealThresh;
         this.linkingSupported = linkingSupported;
         this.enableWorkStealing = enableWorkStealing;
+        this.enableIntermediateTasks = enableIntermediateTasks;
         this.onException = onException;
         final BitSet idleThreads = new BitSet(threads);
         for (int i = 0; i < threads; ++i) {
@@ -84,7 +100,7 @@ public final class AffinitySchedulerThreadPool extends Scheduler {
         this.idleThreads = idleThreads;
 
         final BitSet affinitySet;
-        if (Config.INSTANCE.scheduler.enableAffinitySchedulerCpuAffinity) {
+        if (enableAffinity) {
             if (!CpuTopology.isLinux()) {
                 LOGGER.warn("Affinity setting is only supported on Linux");
                 affinitySet = new BitSet();
@@ -238,7 +254,7 @@ public final class AffinitySchedulerThreadPool extends Scheduler {
         return ret.toArray(new Thread[0]);
     }
 
-    public @Nullable ScheduledState poll(final @NonNull TickThreadRunner runner) {
+    private @Nullable ScheduledState poll(final @NonNull TickThreadRunner runner) {
         final long now = System.nanoTime();
 
         ScheduledState globalHead = globalQueue.peek();
@@ -306,6 +322,11 @@ public final class AffinitySchedulerThreadPool extends Scheduler {
 
     private void insertFresh(final ScheduledState task) {
         final TickThreadRunner[] runners = this.runners;
+
+        for (final TickThreadRunner runner : runners) {
+            // if task is linked, don't insert to queues
+            if (runner.linked == task) return;
+        }
 
         // iterate all idle threads, not just the first one
         for (int i = this.idleThreads.nextSetBit(0); i >= 0; i = this.idleThreads.nextSetBit(i + 1)) {
@@ -387,8 +408,7 @@ public final class AffinitySchedulerThreadPool extends Scheduler {
         private final AtomicBoolean markedWithTasks = new AtomicBoolean(false);
 
         public boolean compareHasTasks() {
-            if (markedWithTasks.get()) {
-                markedWithTasks.set(false);
+            if (markedWithTasks.getAndSet(false)) {
                 return true;
             }
             return tick.hasTasks();
@@ -445,6 +465,14 @@ public final class AffinitySchedulerThreadPool extends Scheduler {
          * </p>
          */
         private static final int STATE_EXECUTING_TICK = 2;
+
+        /**
+         * The runner is running mid-tick tasks for one of the tasks that was in its runqueue.
+         * <p>
+         * stateTarget = the task being ticked
+         * </p>
+         */
+        private static final int STATE_EXECUTING_TASKS = 3;
 
         public final int id;
         public final AffinitySchedulerThreadPool scheduler;
@@ -528,12 +556,13 @@ public final class AffinitySchedulerThreadPool extends Scheduler {
             LockSupport.unpark(this.getRunnerThread());
         }
 
-        private boolean takeTask(final TickThreadRunnerState state, final ScheduledState task) {
+        // note: returns false if the expected state isn't the actual current state, true otherwise
+        private boolean tryExchangeState(final TickThreadRunnerState expected, final TickThreadRunnerState newState) {
             synchronized (this.scheduler.scheduleLock) {
-                if (this.state != state) {
+                if (this.state != expected) {
                     return false;
                 }
-                this.setStatePlain(new TickThreadRunnerState(task, STATE_EXECUTING_TICK));
+                this.setStatePlain(newState);
                 return true;
             }
         }
@@ -587,58 +616,17 @@ public final class AffinitySchedulerThreadPool extends Scheduler {
                         }
 
                         case STATE_AWAITING_TICK: {
-                            final long deadline = startStateTask.tick.getScheduledStart();
+                            // wait until deadline, this will attempt to execute tasks
+                            // during the wait to try and be efficient with time
+                            if (waitUntilDeadline(startStateTask, startState)) continue main_state_loop;
 
-                            for (; ; ) {
-                                if (this.state != startState) {
-                                    continue main_state_loop;
-                                }
-                                final long diff = deadline - System.nanoTime();
-                                if (diff <= 0L) {
-                                    break;
-                                }
-                                // we are parking, which is fine, however, we
-                                // CAN do mid-tick tasks here instead, which makes us
-                                // much more productive
-                                if ((diff > scheduler.runTaskBuff) && // if we are less than the buffer, then don't try run mid-tick-tasks
-                                    (startStateTask.compareHasTasks() || startStateTask.tick.hasTasks())) {
-                                    // try and take the tick task like it's a normal tick
-                                    if (!this.takeTask(startState, startStateTask)) {
-                                        // just park like normal, couldn't take task
-                                        Thread.interrupted();
-                                        LockSupport.parkNanos(startState, diff);
-                                        continue; // done parking, or we got woken up, so we continue so it loops back to check the diff
-                                    }
-                                    // task is taken, wonderful
-                                    final long bufferedDeadline = deadline - scheduler.runTaskBuff;
-                                    final boolean taskRes = startStateTask.tick.runTasks(
-                                        () -> !scheduler.halted && (System.nanoTime() - bufferedDeadline) > 0L
-                                    );
-                                    // return the task to the global queue. we will try and take it later(if rescheduled), which CAN be picked up
-                                    // by a different thread, but if that does happen, it doesn't entirely matter
-                                    this.returnTask(startStateTask, taskRes);
-                                    // either this was rescheduled, which means it won't run on the next tick,
-                                    // or it finished all tasks, and we reloop again. we return to the main state loop,
-                                    // though in the case of the tick being picked up by a different thread
-                                    continue main_state_loop;
-                                }
-                                Thread.interrupted();
-                                LockSupport.parkNanos(startState, diff);
-                                if (scheduler.halted) {
-                                    return;
-                                }
-                            }
-
-                            if (!this.takeTask(startState, startStateTask)) {
-                                // couldn't take task, continue loop
-                                continue main_state_loop;
-                            }
-
-                            try {
+                            // try exchange state and execute tick
+                            if (tryExchangeState(startState, new TickThreadRunnerState(startStateTask, STATE_EXECUTING_TICK))) {
                                 final boolean reschedule = startStateTask.tick.runTick();
+
+                                // if runTick throws, then the task is technically orphaned if the exception handler
+                                // doesn't work properly, which probably should be how this works, since the tick failed
                                 this.returnTask(startStateTask, reschedule);
-                            } catch (Exception e) {
-                                throw new RuntimeException("Unable to tick task", e);
                             }
 
                             continue main_state_loop; // finished tick, continue
@@ -646,6 +634,10 @@ public final class AffinitySchedulerThreadPool extends Scheduler {
 
                         case STATE_EXECUTING_TICK: {
                             throw new IllegalStateException("Tick execution must be set by runner thread, not by any other thread");
+                        }
+
+                        case STATE_EXECUTING_TASKS: {
+                            throw new IllegalStateException("Task execution must be set by runner thread, not by any other thread");
                         }
 
                         default: {
@@ -657,6 +649,50 @@ public final class AffinitySchedulerThreadPool extends Scheduler {
                     return;
                 }
             }
+        }
+
+        // note: returns true if it should continue state loop
+        private boolean waitUntilDeadline(final @NonNull ScheduledState startStateTask, final TickThreadRunnerState startState) {
+            final long deadline = startStateTask.tick.getScheduledStart();
+            final long adjustedForRunBuffer = deadline - scheduler.runTaskBuff;
+
+            for (;;) {
+                if (this.state != startState) {
+                    // state was changed unexpectedly(async?)
+                    return true;
+                }
+                // check if we hit the deadline
+                final long diff = deadline - System.nanoTime();
+                if (diff <= 0L) {
+                    break;
+                }
+                // haven't hit deadline yet, try tasks and then try park
+                final TickThreadRunnerState runTasksState = new TickThreadRunnerState(startStateTask, STATE_EXECUTING_TASKS);
+                if (
+                    scheduler.enableIntermediateTasks &&
+                    adjustedForRunBuffer - System.nanoTime() > 0L &&
+                    startStateTask.compareHasTasks() &&
+                    tryExchangeState(startState, runTasksState)
+                ) {
+                    // we are in run tasks state
+                    startStateTask.tick.runTasks(() -> !scheduler.halted && (adjustedForRunBuffer - System.nanoTime() > 0L));
+                    if (!tryExchangeState(runTasksState, startState)) { // restore back to start state
+                        throw new IllegalStateException("Couldn't set state back to AWAITING");
+                    }
+                }
+                else {
+                    // shouldn't or couldn't run tasks, park until deadline
+                    Thread.interrupted();
+                    LockSupport.parkNanos(startState, diff);
+                    if (this.scheduler.halted) {
+                        // just continue to the head of the loop again
+                        // we have a check there for if we halted
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         @Override
