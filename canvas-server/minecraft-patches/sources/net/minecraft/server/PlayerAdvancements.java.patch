@@ -8,7 +8,7 @@
 -    private final Set<AdvancementHolder> visible = new HashSet<>();
 -    private final Set<AdvancementHolder> progressChanged = new HashSet<>();
 -    private final Set<AdvancementNode> rootsToUpdate = new HashSet<>();
-+    private final Map<AdvancementHolder, AdvancementProgress> progress = new java.util.concurrent.ConcurrentHashMap<>();//new LinkedHashMap<>();
++    private final Map<AdvancementHolder, AdvancementProgress> progress = java.util.Collections.synchronizedMap(new LinkedHashMap<>());
 +    private final Set<AdvancementHolder> visible = com.google.common.collect.Sets.newConcurrentHashSet();
 +    private final Set<AdvancementHolder> progressChanged = com.google.common.collect.Sets.newConcurrentHashSet();//new HashSet<>();
 +    private final Set<AdvancementNode> rootsToUpdate = com.google.common.collect.Sets.newConcurrentHashSet();//new HashSet<>();
