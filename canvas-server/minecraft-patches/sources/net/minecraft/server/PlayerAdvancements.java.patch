@@ -1,0 +1,17 @@
+--- a/net/minecraft/server/PlayerAdvancements.java
++++ b/net/minecraft/server/PlayerAdvancements.java
+@@ -51,10 +_,10 @@
+     private final PlayerList playerList;
+     private final Path playerSavePath;
+     private AdvancementTree tree;
+-    private final Map<AdvancementHolder, AdvancementProgress> progress = new LinkedHashMap<>();
+-    private final Set<AdvancementHolder> visible = new HashSet<>();
+-    private final Set<AdvancementHolder> progressChanged = new HashSet<>();
+-    private final Set<AdvancementNode> rootsToUpdate = new HashSet<>();
++    private final Map<AdvancementHolder, AdvancementProgress> progress = new java.util.concurrent.ConcurrentHashMap<>();//new LinkedHashMap<>();
++    private final Set<AdvancementHolder> visible = com.google.common.collect.Sets.newConcurrentHashSet();
++    private final Set<AdvancementHolder> progressChanged = com.google.common.collect.Sets.newConcurrentHashSet();//new HashSet<>();
++    private final Set<AdvancementNode> rootsToUpdate = com.google.common.collect.Sets.newConcurrentHashSet();//new HashSet<>();
+     private ServerPlayer player;
+     private @Nullable AdvancementHolder lastSelectedTab;
+     private boolean isFirstPacket = true;
