@@ -1,0 +1,148 @@
+--- a/net/minecraft/server/level/ServerPlayerGameMode.java
++++ b/net/minecraft/server/level/ServerPlayerGameMode.java
+@@ -510,6 +_,7 @@
+         this.interactPosition = blockPos.immutable();
+         this.interactHand = hand;
+         this.interactItemStack = stack.copy();
++        java.util.UUID interactionId = java.util.UUID.randomUUID();
+ 
+         if (event.useInteractedBlock() == org.bukkit.event.Event.Result.DENY) {
+             // Block acks will take care of most of it, just handle some special cases here
+@@ -524,14 +_,28 @@
+             } else {
+                 this.player.containerMenu.forceHeldSlot(hand);
+             }
++            org.bukkit.craftbukkit.event.CraftEventFactory.callPlayerDetailedInteractEvent(
++                net.smponline.event.PlayerDetailedInteractEvent.InteractionType.NOTHING,
++                interactionId,
++                player, org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK, blockPos, hitResult.getDirection(), stack, cancelledBlock, cancelledItem, hand, hitResult.getLocation()
++            );
+             // Paper end - Fix inventory desync
+             this.player.resyncUsingItem(this.player); // Paper - Properly cancel usable items
+             return (event.useItemInHand() != org.bukkit.event.Event.Result.ALLOW) ? InteractionResult.SUCCESS : InteractionResult.PASS;
+         } else if (this.gameModeForPlayer == GameType.SPECTATOR) {
+             MenuProvider menuProvider = blockState.getMenuProvider(level, blockPos);
+-            if (menuProvider != null && player.openMenu(menuProvider).isPresent()) { // Paper - Fix InventoryOpenEvent cancellation
+-                return InteractionResult.CONSUME;
+-            } else {
++            if(menuProvider != null) {
++                net.smponline.event.PlayerDetailedInteractEvent detailedEvent = org.bukkit.craftbukkit.event.CraftEventFactory.callPlayerDetailedInteractEvent(
++                    net.smponline.event.PlayerDetailedInteractEvent.InteractionType.SPECTATOR_OPEN_MENU,
++                    interactionId,
++                    player, org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK, blockPos, hitResult.getDirection(), stack, cancelledBlock, cancelledItem, hand, hitResult.getLocation()
++                );
++                if (!detailedEvent.isCancelled() && player.openMenu(menuProvider).isPresent()) { // Paper - Fix InventoryOpenEvent cancellation
++                    return InteractionResult.CONSUME;
++                }else{
++                    return InteractionResult.PASS;
++                }
++            }else {
+                 return InteractionResult.PASS;
+             }
+         } else {
+@@ -539,14 +_,34 @@
+             boolean flag1 = player.isSecondaryUseActive() && flag;
+             ItemStack itemStack = stack.copy();
+             if (!flag1) {
+-                InteractionResult interactionResult = blockState.useItemOn(player.getItemInHand(hand), level, player, hand, hitResult);
++                net.smponline.event.PlayerDetailedInteractEvent detailedEvent = org.bukkit.craftbukkit.event.CraftEventFactory.callPlayerDetailedInteractEvent(
++                    net.smponline.event.PlayerDetailedInteractEvent.InteractionType.ATTEMPT_USE_ITEM_ON_BLOCK,
++                    interactionId,
++                    player, org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK, blockPos, hitResult.getDirection(), stack, cancelledBlock, cancelledItem, hand, hitResult.getLocation()
++                );
++                InteractionResult interactionResult;
++                if(detailedEvent.isCancelled()){
++                    interactionResult = net.minecraft.world.InteractionResult.TRY_WITH_EMPTY_HAND;
++                }else{
++                    interactionResult = blockState.useItemOn(player.getItemInHand(hand), level, player, hand, hitResult);
++                }
+                 if (interactionResult.consumesAction()) {
+                     CriteriaTriggers.ITEM_USED_ON_BLOCK.trigger(player, blockPos, itemStack);
+                     return interactionResult;
+                 }
+ 
+                 if (interactionResult instanceof InteractionResult.TryEmptyHandInteraction && hand == InteractionHand.MAIN_HAND) {
+-                    InteractionResult interactionResult1 = blockState.useWithoutItem(level, player, hitResult);
++                    detailedEvent = org.bukkit.craftbukkit.event.CraftEventFactory.callPlayerDetailedInteractEvent(
++                        net.smponline.event.PlayerDetailedInteractEvent.InteractionType.ATTEMPT_USE_HAND_ON_BLOCK,
++                        interactionId,
++                        player, org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK, blockPos, hitResult.getDirection(), stack, cancelledBlock, cancelledItem, hand, hitResult.getLocation()
++                    );
++                    InteractionResult interactionResult1;
++                    if(detailedEvent.isCancelled()){
++                        interactionResult1 = net.minecraft.world.InteractionResult.PASS;
++                    }else{
++                        interactionResult1 = blockState.useWithoutItem(level, player, hitResult);
++                    }
+                     if (interactionResult1.consumesAction()) {
+                         CriteriaTriggers.DEFAULT_BLOCK_USE.trigger(player, blockPos);
+                         return interactionResult1;
+@@ -554,30 +_,45 @@
+                 }
+             }
+ 
++
+             if (!stack.isEmpty() && !this.interactResult) { // add !interactResult SPIGOT-764
+-                UseOnContext useOnContext = new UseOnContext(player, hand, hitResult);
+-                InteractionResult interactionResult1;
+-                if (player.hasInfiniteMaterials()) {
+-                    int count = stack.getCount();
+-                    interactionResult1 = stack.useOn(useOnContext);
+-                    stack.setCount(count);
+-                } else {
+-                    interactionResult1 = stack.useOn(useOnContext);
+-                }
+-
+-                if (interactionResult1.consumesAction()) {
+-                    CriteriaTriggers.ITEM_USED_ON_BLOCK.trigger(player, blockPos, itemStack);
+-                }
+-
+-                return interactionResult1;
+-            } else {
+-                // Paper start - Properly cancel usable items; Cancel only if cancelled + if the interact result is different from default response
+-                if (this.interactResult && this.interactResult != cancelledItem) {
+-                    this.player.resyncUsingItem(this.player);
+-                }
+-                // Paper end - Properly cancel usable items
+-                return InteractionResult.PASS;
+-            }
++                net.smponline.event.PlayerDetailedInteractEvent detailedEvent = org.bukkit.craftbukkit.event.CraftEventFactory.callPlayerDetailedInteractEvent(
++                    net.smponline.event.PlayerDetailedInteractEvent.InteractionType.ATTEMPT_USE_ITEM_ON_BLOCK,
++                    interactionId,
++                    player, org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK, blockPos, hitResult.getDirection(), stack, cancelledBlock, cancelledItem, hand, hitResult.getLocation()
++                );
++                if (!detailedEvent.isCancelled()) {
++                    UseOnContext useOnContext = new UseOnContext(player, hand, hitResult);
++                    InteractionResult interactionResult1;
++                    if (player.hasInfiniteMaterials()) {
++                        int count = stack.getCount();
++                        interactionResult1 = stack.useOn(useOnContext);
++                        stack.setCount(count);
++                    } else {
++                        interactionResult1 = stack.useOn(useOnContext);
++                    }
++
++                    if (interactionResult1.consumesAction()) {
++                        CriteriaTriggers.ITEM_USED_ON_BLOCK.trigger(player, blockPos, itemStack);
++                    }
++
++                    return interactionResult1;
++                }
++            }else{
++                org.bukkit.craftbukkit.event.CraftEventFactory.callPlayerDetailedInteractEvent(
++                    net.smponline.event.PlayerDetailedInteractEvent.InteractionType.NOTHING,
++                    interactionId,
++                    player, org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK, blockPos, hitResult.getDirection(), stack, cancelledBlock, cancelledItem, hand, hitResult.getLocation()
++                );
++            }
++
++            // Paper start - Properly cancel usable items; Cancel only if cancelled + if the interact result is different from default response
++            if (this.interactResult && this.interactResult != cancelledItem) {
++                this.player.resyncUsingItem(this.player);
++            }
++
++            // Paper end - Properly cancel usable items
++            return InteractionResult.PASS;
+         }
+     }
+ 

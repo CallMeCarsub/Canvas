@@ -1,0 +1,50 @@
+--- a/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
++++ b/src/main/java/org/bukkit/craftbukkit/event/CraftEventFactory.java
+@@ -656,6 +_,47 @@
+         return event;
+     }
+ 
++    public static net.smponline.event.PlayerDetailedInteractEvent callPlayerDetailedInteractEvent(net.smponline.event.PlayerDetailedInteractEvent.InteractionType interactionType, java.util.UUID interactionId, net.minecraft.world.entity.player.Player player, Action action, BlockPos pos, Direction direction, ItemStack item, boolean cancelledBlock, boolean cancelledItem, InteractionHand hand, Vec3 targetPos) {
++        Player cplayer = (player == null) ? null : (Player) player.getBukkitEntity();
++        CraftItemStack itemInHand = CraftItemStack.asCraftMirror(item);
++
++        Vector clickedPos = null;
++        if (pos != null && targetPos != null) {
++            clickedPos = CraftVector.toBukkit(targetPos.subtract(Vec3.atLowerCornerOf(pos)));
++        }
++
++        CraftServer craftServer = (CraftServer) cplayer.getServer();
++        Block clickedBlock = null;
++        if (pos != null) {
++            clickedBlock = org.bukkit.craftbukkit.block.CraftBlock.at(player.level(), pos);
++        } else {
++            switch (action) {
++                case LEFT_CLICK_BLOCK:
++                    action = Action.LEFT_CLICK_AIR;
++                    break;
++                case RIGHT_CLICK_BLOCK:
++                    action = Action.RIGHT_CLICK_AIR;
++                    break;
++            }
++        }
++        BlockFace blockFace = CraftBlock.notchToBlockFace(direction);
++
++        if (itemInHand.isEmpty()) {
++            itemInHand = null;
++        }
++
++        net.smponline.event.PlayerDetailedInteractEvent event = new net.smponline.event.PlayerDetailedInteractEvent(cplayer, action, itemInHand, clickedBlock, blockFace, (hand == null) ? null : ((hand == InteractionHand.OFF_HAND) ? EquipmentSlot.OFF_HAND : EquipmentSlot.HAND), clickedPos, interactionType, interactionId);
++        if (cancelledBlock) {
++            event.setUseInteractedBlock(Event.Result.DENY);
++        }
++        if (cancelledItem) {
++            event.setUseItemInHand(Result.DENY);
++        }
++        craftServer.getPluginManager().callEvent(event);
++
++        return event;
++    }
++
+     public static EntityTransformEvent callEntityTransformEvent(net.minecraft.world.entity.LivingEntity original, net.minecraft.world.entity.LivingEntity converted, EntityTransformEvent.TransformReason transformReason) {
+         return CraftEventFactory.callEntityTransformEvent(original, Collections.singletonList(converted), transformReason);
+     }
