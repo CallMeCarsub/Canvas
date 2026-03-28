@@ -104,20 +104,20 @@ public class PlayerDetailedInteractEvent extends PlayerInteractEvent {
     }
 
     /**
-     * Throws UnsupportedOperationException as DetailedInteract is for interfacing more directly with NMS actions
+     * Does nothing as DetailedInteract is for interfacing more directly with NMS actions
      * @param useInteractedBlock the action to take with the interacted block
      */
     @Override
     public void setUseInteractedBlock(@NotNull final Result useInteractedBlock) {
-        throw new UnsupportedOperationException("Not supported");
+
     }
 
     /**
-     * Throws UnsupportedOperationException as DetailedInteract is for interfacing more directly with NMS actions
+     * Does nothing as DetailedInteract is for interfacing more directly with NMS actions
      * @param useItemInHand the action to take with the item in hand
      */
     @Override
     public void setUseItemInHand(@NotNull final Result useItemInHand) {
-        throw new UnsupportedOperationException("Not supported");
+
     }
 }
