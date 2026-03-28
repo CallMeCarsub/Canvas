@@ -44,8 +44,8 @@ public class PlayerDetailedInteractEvent extends PlayerInteractEvent {
         private final boolean mayAffectBlock;
         private final boolean mayAffectItem;
         InteractionType(boolean mayAffectBlock, boolean mayAffectItem){
-            this.mayAffectBlock = false;
-            this.mayAffectItem = false;
+            this.mayAffectBlock = mayAffectBlock;
+            this.mayAffectItem = mayAffectItem;
         }
 
         public boolean mayAffectBlock(){
