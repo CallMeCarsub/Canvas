@@ -1,0 +1,28 @@
+--- a/src/main/java/org/bukkit/event/block/CampfireStartEvent.java
++++ b/src/main/java/org/bukkit/event/block/CampfireStartEvent.java
+@@ -14,12 +_,14 @@
+ 
+     private final CampfireRecipe campfireRecipe;
+     private int cookingTime;
++    private org.bukkit.entity.LivingEntity entity;
+ 
+     @ApiStatus.Internal
+-    public CampfireStartEvent(@NotNull final Block campfire, @NotNull ItemStack source, @NotNull CampfireRecipe recipe) {
++    public CampfireStartEvent(@NotNull final Block campfire, @NotNull ItemStack source, @NotNull CampfireRecipe recipe, org.bukkit.entity.LivingEntity entity) {
+         super(campfire, source);
+         this.cookingTime = recipe.getCookingTime();
+         this.campfireRecipe = recipe;
++        this.entity = entity;
+     }
+ 
+     /**
+@@ -48,5 +_,9 @@
+      */
+     public void setTotalCookTime(int cookTime) {
+         this.cookingTime = cookTime;
++    }
++
++    public org.bukkit.entity.LivingEntity getEntity() {
++        return entity;
+     }
+ }
