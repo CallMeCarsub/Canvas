@@ -21,6 +21,9 @@
 package me.lucko.spark.paper.common.command.modules;
 
 import com.google.common.collect.Iterables;
+import io.canvasmc.canvas.spark.profiler.ByNameThreadGrouper;
+import io.canvasmc.canvas.spark.profiler.RegionProfiler;
+import io.canvasmc.canvas.tick.SchedulerUtil;
 import me.lucko.spark.paper.common.SparkPlatform;
 import me.lucko.spark.paper.common.activitylog.Activity;
 import me.lucko.spark.paper.common.command.Arguments;
@@ -70,7 +73,7 @@ import static net.kyori.adventure.text.format.NamedTextColor.GRAY;
 import static net.kyori.adventure.text.format.NamedTextColor.RED;
 import static net.kyori.adventure.text.format.NamedTextColor.WHITE;
 
-// TODO - update this whenever this class updates in spark, since there are no source files... RAHHHH
+// TODO - contact Toffik about making this a patch
 public class SamplerModule implements CommandModule {
 
     @Override
@@ -82,7 +85,7 @@ public class SamplerModule implements CommandModule {
                 .argumentUsage("open", "", null)
                 .argumentUsage("start", "timeout", "timeout seconds")
                 .argumentUsage("start", "thread *", null)
-                .argumentUsage("start", "region ~ ~", "regionized profiling") // Canvas - rewrite scheduler
+                .argumentUsage("start", "region ~ ~", "regionized profiling") // Canvas - region profiler
                 .argumentUsage("start", "thread", "thread name")
                 .argumentUsage("start", "only-ticks-over", "tick length millis")
                 .argumentUsage("start", "interval", "interval millis")
@@ -104,12 +107,12 @@ public class SamplerModule implements CommandModule {
                                     "--not-combined", "--interval", "--only-ticks-over", "--force-java-sampler", "--alloc", "--alloc-live-only"));
                             opts.removeAll(arguments);
                             opts.add("--thread"); // allowed multiple times
-                            // Canvas start - rewrite scheduler
+                            // Canvas start - region profiler
                             if (!arguments.contains("--region") && !arguments.contains("--global-tick")) {
                                 opts.add("--region");
                                 opts.add("--global-tick");
                             }
-                            // Canvas end - rewrite scheduler
+                            // Canvas end - region profiler
                         }
                     }
 
@@ -201,11 +204,11 @@ public class SamplerModule implements CommandModule {
         boolean forceJavaSampler = arguments.boolFlag("force-java-sampler");
 
         Set<String> threads = arguments.stringFlag("thread");
-        // Canvas start - rewrite scheduler
+        // Canvas start - region profiler
         final double finalInterval = interval;
         Runnable pinCallback = () -> {
         ThreadDumper threadDumper;
-        boolean usingPinnedThreadDumper = io.canvasmc.canvas.spark.profiler.SparkRegionProfilerExtension.isProfiling();
+        boolean usingPinnedThreadDumper = RegionProfiler.isProfiling();
         if (threads.isEmpty() || usingPinnedThreadDumper) {
             // use the server thread
             threadDumper = platform.getPlugin().getDefaultThreadDumper();
@@ -222,7 +225,7 @@ public class SamplerModule implements CommandModule {
 
         Supplier<ThreadGrouper> threadGrouper;
         if (usingPinnedThreadDumper) {
-            threadGrouper = io.canvasmc.canvas.spark.profiler.ByName::new;
+            threadGrouper = ByNameThreadGrouper::new;
         } else if (arguments.boolFlag("combine-all")) {
             threadGrouper = ThreadGrouper.AS_ONE;
         } else if (arguments.boolFlag("not-combined")) {
@@ -235,7 +238,7 @@ public class SamplerModule implements CommandModule {
         TickHook tickHook = null;
         if (ticksOver != -1) {
             tickHook = platform.getTickHook();
-            if (tickHook == null) {
+            if (tickHook == null || !SchedulerUtil.getHandle().isRunningRegionProfiler()) { // Canvas - region profiler
                 resp.replyPrefixed(text("Tick counting is not supported!", RED));
                 return;
             }
@@ -290,20 +293,20 @@ public class SamplerModule implements CommandModule {
         // send message if profiling fails
         future.whenCompleteAsync((s, throwable) -> {
             if (throwable != null) {
-                Runnable callback = () -> { // Canvas - rewrite scheduler
+                Runnable callback = () -> { // Canvas - region profiler
                 resp.broadcastPrefixed(text("Profiler operation failed unexpectedly. Error: " + throwable, RED));
                 platform.getPlugin().log(Level.SEVERE, "Profiler operation failed unexpectedly", throwable);
-                    // Canvas start - rewrite scheduler
+                    // Canvas start - region profiler
                 };
-                if (io.canvasmc.canvas.spark.profiler.SparkRegionProfilerExtension.isProfiling()) {
+                if (RegionProfiler.isProfiling()) {
                     // in ACTIVE profiling session, since that's atomic and doesn't have a cache
-                    io.canvasmc.canvas.spark.profiler.SparkRegionProfilerExtension.endPinning(
+                    RegionProfiler.endPinning(
                         (str) -> resp.broadcastPrefixed(text(str)),
                         (str) -> resp.broadcastPrefixed(text(str, RED)),
                         callback
                     );
                 } else callback.run();
-                // Canvas end - rewrite scheduler
+                // Canvas end - region profiler
             }
         });
 
@@ -315,20 +318,20 @@ public class SamplerModule implements CommandModule {
             Sampler.ExportProps exportProps = getExportProps(platform, resp, arguments);
             boolean saveToFile = arguments.boolFlag("save-to-file");
             future.thenAcceptAsync(s -> {
-                Runnable callback = () -> { // Canvas - rewrite scheduler
+                Runnable callback = () -> { // Canvas - region profiler
                 resp.broadcastPrefixed(text("The active profiler has completed! Uploading results..."));
                 handleUpload(platform, resp, s, exportProps, saveToFile);
-                // Canvas start - rewrite scheduler
+                // Canvas start - region profiler
                 };
-                if (io.canvasmc.canvas.spark.profiler.SparkRegionProfilerExtension.isProfiling()) {
+                if (RegionProfiler.isProfiling()) {
                     // in ACTIVE profiling session, since that's atomic and doesn't have a cache
-                    io.canvasmc.canvas.spark.profiler.SparkRegionProfilerExtension.endPinning(
+                    RegionProfiler.endPinning(
                         (str) -> resp.broadcastPrefixed(text(str)),
                         (str) -> resp.broadcastPrefixed(text(str, RED)),
                         callback
                     );
                 } else callback.run();
-                // Canvas end - rewrite scheduler
+                // Canvas end - region profiler
             });
         }
         };
@@ -380,7 +383,7 @@ public class SamplerModule implements CommandModule {
                 throw new IllegalArgumentException("Expected 2 or 4 arguments, got " + blockPosArgs.size());
             }
 
-            io.canvasmc.canvas.spark.profiler.SparkRegionProfilerExtension.computeProfilePin(
+            RegionProfiler.computeProfilePin(
                 (str) -> resp.replyPrefixed(text(str)),
                 (str) -> resp.replyPrefixed(text(str, RED)),
                 new io.canvasmc.canvas.spark.profiler.RegionScheduleHandlePinner.RegionPinner(
@@ -392,14 +395,14 @@ public class SamplerModule implements CommandModule {
             );
         } else if (!arguments.stringFlag("global-tick").isEmpty()) {
             // run global tick profiler
-            io.canvasmc.canvas.spark.profiler.SparkRegionProfilerExtension.computeProfilePin(
+            RegionProfiler.computeProfilePin(
                 (str) -> resp.replyPrefixed(text(str)),
                 (str) -> resp.replyPrefixed(text(str, RED)),
                 new io.canvasmc.canvas.spark.profiler.RegionScheduleHandlePinner.GlobalTickPinner(),
                 pinCallback
             );
         } else pinCallback.run();
-        // Canvas end - rewrite scheduler
+        // Canvas end - region profiler
     }
 
     private void profilerInfo(SparkPlatform platform, CommandResponseHandler resp) {
@@ -488,20 +491,20 @@ public class SamplerModule implements CommandModule {
         if (sampler == null) {
             resp.replyPrefixed(text("There isn't an active profiler running."));
         } else {
-            Runnable callback = () -> { // Canvas - rewrite scheduler
+            Runnable callback = () -> { // Canvas - region profiler
             platform.getSamplerContainer().stopActiveSampler(true);
             resp.broadcastPrefixed(text("Profiler has been cancelled.", GOLD));
-            // Canvas start - rewrite scheduler
+            // Canvas start - region profiler
             };
-            if (io.canvasmc.canvas.spark.profiler.SparkRegionProfilerExtension.isProfiling()) {
+            if (RegionProfiler.isProfiling()) {
                 // in ACTIVE profiling session, since that's atomic and doesn't have a cache
-                io.canvasmc.canvas.spark.profiler.SparkRegionProfilerExtension.endPinning(
+                RegionProfiler.endPinning(
                     (str) -> resp.replyPrefixed(text(str)),
                     (str) -> resp.replyPrefixed(text(str, RED)),
                     callback
                 );
             } else callback.run();
-            // Canvas end - rewrite scheduler
+            // Canvas end - region profiler
         }
     }
 
@@ -511,7 +514,7 @@ public class SamplerModule implements CommandModule {
         if (sampler == null) {
             resp.replyPrefixed(text("There isn't an active profiler running."));
         } else {
-            Runnable callback = () -> { // Canvas - rewrite scheduler
+            Runnable callback = () -> { // Canvas - region profiler
             platform.getSamplerContainer().unsetActiveSampler(sampler);
             sampler.stop(false);
 
@@ -533,17 +536,17 @@ public class SamplerModule implements CommandModule {
                         .build()
                 );
             }
-            // Canvas start - rewrite scheduler
+            // Canvas start - region profiler
             };
-            if (io.canvasmc.canvas.spark.profiler.SparkRegionProfilerExtension.isProfiling()) {
+            if (RegionProfiler.isProfiling()) {
                 // in ACTIVE profiling session, since that's atomic and doesn't have a cache
-                io.canvasmc.canvas.spark.profiler.SparkRegionProfilerExtension.endPinning(
+                RegionProfiler.endPinning(
                     (str) -> resp.replyPrefixed(text(str)),
                     (str) -> resp.replyPrefixed(text(str, RED)),
                     callback
                 );
             } else callback.run();
-            // Canvas end - rewrite scheduler
+            // Canvas end - region profiler
         }
     }
 

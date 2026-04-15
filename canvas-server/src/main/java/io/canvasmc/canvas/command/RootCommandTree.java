@@ -2,6 +2,7 @@ package io.canvasmc.canvas.command;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import io.canvasmc.canvas.command.sub.RegionTickCommand;
 import io.canvasmc.canvas.command.sub.ReloadCommand;
 import io.canvasmc.canvas.command.sub.SetMaxPlayersCommand;
 import io.canvasmc.canvas.command.sub.TpsBarCommand;
@@ -17,10 +18,11 @@ import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.minecraft.commands.CommandSourceStack;
 import org.bukkit.command.CommandSender;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NullMarked;
 
 import static net.minecraft.commands.Commands.literal;
 
+@NullMarked
 public class RootCommandTree {
     private static final TextColor HEADER = TextColor.color(79, 164, 240);
     private static final TextColor PRIMARY = TextColor.color(48, 145, 237);
@@ -38,12 +40,12 @@ public class RootCommandTree {
         INSTANCE.register(TpsBarCommand.class);
         INSTANCE.register(WorldDistanceCommand.class);
         INSTANCE.register(ReloadCommand.class);
+        INSTANCE.register(RegionTickCommand.class);
     }
 
     private final List<Command> subCommands = new LinkedList<>();
 
-    @NotNull
-    private Component buildDetailComponent(@NotNull Command subCommand) {
+    private Component buildDetailComponent(Command subCommand) {
         String name = subCommand.getName();
         String description = subCommand.getDescription();
         boolean selfCmd = subCommand.isAllowedSelfCommand();
@@ -138,7 +140,7 @@ public class RootCommandTree {
         dispatcher.register(root);
     }
 
-    public void register(@NotNull Class<? extends Command> command) {
+    public void register(Class<? extends Command> command) {
         try {
             if (command.getDeclaredConstructor().getParameterCount() != 0) {
                 throw new IllegalArgumentException("Command must have no-arg constructor");

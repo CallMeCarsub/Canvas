@@ -1,6 +1,12 @@
 package io.canvasmc.canvas.spark;
 
-import io.canvasmc.canvas.spark.profiler.PinningThreadDumper;
+import io.canvasmc.canvas.spark.plugin.FoliaClassSourceLookup;
+import io.canvasmc.canvas.spark.plugin.FoliaPlatformInfo;
+import io.canvasmc.canvas.spark.plugin.FoliaPlayerPingProvider;
+import io.canvasmc.canvas.spark.plugin.FoliaServerConfigProvider;
+import io.canvasmc.canvas.spark.plugin.FoliaTickStatistics;
+import io.canvasmc.canvas.spark.plugin.FoliaWorldInfoProvider;
+import io.canvasmc.canvas.spark.profiler.RegionThreadDumper;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
@@ -10,8 +16,6 @@ import java.util.logging.Logger;
 import java.util.stream.Stream;
 import me.lucko.spark.api.Spark;
 import me.lucko.spark.paper.PaperCommandSender;
-import me.lucko.spark.paper.PaperTickHook;
-import me.lucko.spark.paper.PaperTickReporter;
 import me.lucko.spark.paper.api.Compatibility;
 import me.lucko.spark.paper.api.PaperClassLookup;
 import me.lucko.spark.paper.api.PaperScheduler;
@@ -32,15 +36,15 @@ import me.lucko.spark.paper.common.util.classfinder.ClassFinder;
 import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.Plugin;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 public class FoliaSparkPlugin implements PaperSparkModule, SparkPlugin {
     private final Server server;
     private final Logger logger;
     private final PaperScheduler scheduler;
     private final PaperClassLookup classLookup;
-    private final PaperTickHook tickHook;
-    private final PaperTickReporter tickReporter;
+    private final FoliaTickHook tickHook;
+    private final FoliaTickReporter tickReporter;
     private final ThreadDumper gameThreadDumper;
     private final SparkPlatform platform;
 
@@ -50,13 +54,13 @@ public class FoliaSparkPlugin implements PaperSparkModule, SparkPlugin {
         this.logger = logger;
         this.scheduler = scheduler;
         this.classLookup = classLookup;
-        this.tickHook = new PaperTickHook();
-        this.tickReporter = new PaperTickReporter();
-        this.gameThreadDumper = new PinningThreadDumper();
+        this.tickHook = new FoliaTickHook();
+        this.tickReporter = new FoliaTickReporter();
+        this.gameThreadDumper = new RegionThreadDumper();
         this.platform = new SparkPlatform(this);
     }
 
-    public static @NotNull PaperSparkModule create(Compatibility compatibility, Server server, Logger logger, PaperScheduler scheduler, PaperClassLookup classLookup) {
+    public static @NonNull PaperSparkModule create(Compatibility compatibility, Server server, Logger logger, PaperScheduler scheduler, PaperClassLookup classLookup) {
         return new FoliaSparkPlugin(server, logger, scheduler, classLookup);
     }
 

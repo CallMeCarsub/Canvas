@@ -52,6 +52,13 @@ public interface RegionTickData {
     <T> T getOrCreateFromIRegionizedData(IRegionizedData<T> regionizedData);
 
     /**
+     * Gets the tick state manager for this region
+     *
+     * @return the tick manager
+     */
+    RegionThreadingTickManager.RegionHandle getTickManager();
+
+    /**
      * Represents a type of region-local data that can be attached to a region through the {@link RegionTickData}
      * system.
      *
@@ -167,6 +174,24 @@ public interface RegionTickData {
                 final T from, final int chunkToRegionShift,
                 final Long2ReferenceOpenHashMap<T> regionToData, final ReferenceOpenHashSet<T> dataSet
             );
+
+            /**
+             * Gets the {@code long} region section coordinate from the provided chunk X and Z and region shift
+             *
+             * @param chunkX
+             *     the chunk X
+             * @param chunkZ
+             *     the chunk Z
+             * @param chunkToRegionShift
+             *     the region shift
+             *
+             * @return the region section coordinate at that chunk position
+             */
+            default long getRegionSectionCoordinates(final int chunkX, final int chunkZ, final int chunkToRegionShift) {
+                final int regionSectionX = chunkX >> chunkToRegionShift;
+                final int regionSectionZ = chunkZ >> chunkToRegionShift;
+                return ((long) regionSectionZ << 32) | (regionSectionX & 0xFFFFFFFFL);
+            }
         }
     }
 }

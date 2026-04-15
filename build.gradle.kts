@@ -12,6 +12,7 @@ plugins {
 val paperMavenPublicUrl = "https://repo.papermc.io/repository/maven-public/"
 
 paperweight {
+    filterPatches = false
     upstreams.folia {
         ref = providers.gradleProperty("foliaCommit")
 
@@ -77,12 +78,6 @@ subprojects {
             events(TestLogEvent.STANDARD_OUT)
         }
     }
-    tasks.withType<RebuildGitPatches>().configureEach {
-        filterPatches = false
-    }
-    tasks.withType<RebuildBaseGitPatches>().configureEach {
-        filterPatches = false
-    }
     extensions.configure<PublishingExtension> {
         repositories {
             maven("https://maven.canvasmc.io/snapshots") {
@@ -108,6 +103,10 @@ subprojects {
             authors = listOf("CanvasMC")
             foliaSupported = true
         }
+
+        tasks.processResources {
+            duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        }
     }
 }
 
@@ -116,15 +115,12 @@ tasks.register("fixupMinecraftFilePatches") {
     dependsOn(":canvas-server:fixupMinecraftSourcePatches")
 }
 
-tasks.register("prepareJenkins") {
-    val libsDirPath = providers.provider {
-        layout.projectDirectory.file("canvas-server/build/libs").asFile
-    }
+// TODO: remove me in 26.1
+tasks.register("createPublisherJar") {
+    dependsOn(":canvas-server:createMojmapPublisherJar")
+}
 
-    doLast {
-        val libsDir = libsDirPath.get()
-        if (libsDir.exists()) {
-            libsDir.deleteRecursively()
-        }
-    }
+// TODO: remove me in 26.1
+tasks.register("cleanCreatePublisherJar") {
+    dependsOn(":canvas-server:cleanCreateMojmapPublisherJar")
 }

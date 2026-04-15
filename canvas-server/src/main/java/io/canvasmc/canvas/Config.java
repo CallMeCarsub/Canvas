@@ -2,7 +2,6 @@ package io.canvasmc.canvas;
 
 import ca.spottedleaf.moonrise.common.util.MoonriseConstants;
 import ca.spottedleaf.moonrise.patches.chunk_system.util.ParallelSearchRadiusIteration;
-import io.canvasmc.canvas.chunk.FluidPostProcessingMode;
 import io.canvasmc.canvas.configuration.ConfigSerializer;
 import io.canvasmc.canvas.configuration.Configuration;
 import io.canvasmc.canvas.configuration.internal.ConfigurationManager;
@@ -11,11 +10,13 @@ import io.canvasmc.canvas.configuration.validator.numeric.NonNegativeNumericValu
 import io.canvasmc.canvas.configuration.validator.numeric.PositiveNumericValueValidator;
 import io.canvasmc.canvas.configuration.validator.numeric.RangeValidator;
 import io.canvasmc.canvas.configuration.writer.Comment;
-import io.canvasmc.canvas.entity.EntityCollisionMode;
 import io.canvasmc.canvas.simd.SIMDDetection;
 import io.canvasmc.canvas.tick.AffinitySchedulerThreadPool;
-import io.canvasmc.canvas.util.ApiClient;
-import io.canvasmc.canvas.util.CanvasVersionFetcher;
+import io.canvasmc.canvas.util.Json5SerializerImpl;
+import io.canvasmc.canvas.util.version.ApiClient;
+import io.canvasmc.canvas.util.version.CanvasVersionFetcher;
+import io.canvasmc.canvas.world.RegionizedTpsBar;
+import io.canvasmc.canvas.world.entity.EntityCollisionMode;
 import io.papermc.paper.ServerBuildInfo;
 import io.papermc.paper.adventure.PaperAdventure;
 import io.papermc.paper.threadedregions.RegionizedServer;
@@ -37,8 +38,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Util;
 import net.minecraft.world.level.Level;
 import org.bukkit.Bukkit;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Unmodifiable;
+import org.jspecify.annotations.NonNull;
 
 @Configuration("canvas-server")
 public class Config {
@@ -46,7 +47,7 @@ public class Config {
     public static final ComponentLogger LOGGER = ComponentLogger.logger("Canvas");
     // Note: this field should never be used during POST, use 'context.configuration()' instead
     public static Config INSTANCE;
-    public static ApiClient.ChannelType ACTIVE_BUILD_CHANNEL = ApiClient.ChannelType.UNKNOWN;
+    public static ApiClient.BuildStatus ACTIVE_BUILD_CHANNEL = ApiClient.BuildStatus.UNKNOWN;
     public static final Consumer<String> GLOBAL_BROADCAST = (msg) -> {
         Component component = RegionizedTpsBar.gradient("[CanvasMC] ",
             s -> s.decorate(TextDecoration.BOLD),
@@ -76,24 +77,24 @@ public class Config {
         //noinspection ResultOfMethodCallIgnored
         ParallelSearchRadiusIteration.getSearchIteration(MoonriseConstants.MAX_VIEW_DISTANCE);
         CompletableFuture.supplyAsync(() -> {
-            ApiClient.ChannelType channelType = ApiClient.ChannelType.UNKNOWN;
+            ApiClient.BuildStatus buildStatus = ApiClient.BuildStatus.UNKNOWN;
             ServerBuildInfo buildInfo = ServerBuildInfo.buildInfo();
-            int build = buildInfo.buildNumber().orElse(-1);
-            if (build == -1) {
-                channelType = ApiClient.ChannelType.LOCAL;
+            int buildNum = buildInfo.buildNumber().orElse(-1);
+            if (buildNum == -1) {
+                buildStatus = ApiClient.BuildStatus.LOCAL;
             }
             else {
                 try {
-                    channelType = CanvasVersionFetcher.CLIENT.getBuild(build).channelType();
+                    buildStatus = CanvasVersionFetcher.CLIENT.getBuild(buildNum).buildStatus();
                 } catch (Throwable ignored) {
                 }
             }
-            return channelType;
-        }).thenAccept(channelType -> RegionizedServer.getInstance().addTask(() -> {
-            ACTIVE_BUILD_CHANNEL = channelType;
-            switch (channelType) {
+            return buildStatus;
+        }).thenAccept(buildStatus -> RegionizedServer.getInstance().addTask(() -> {
+            ACTIVE_BUILD_CHANNEL = buildStatus;
+            switch (buildStatus) {
                 case UNKNOWN -> GLOBAL_BROADCAST.accept("Running unknown build channel, proceed with caution");
-                case BETA -> GLOBAL_BROADCAST.accept("Running a beta build, there may be bugs, proceed with caution!");
+                case EXPERIMENTAL -> GLOBAL_BROADCAST.accept("Running a beta build, there may be bugs, proceed with caution!");
                 case LOCAL ->
                     GLOBAL_BROADCAST.accept("You are running a development version of Canvas, which may not be production-ready, be very careful!");
             }
@@ -107,8 +108,8 @@ public class Config {
         GLOBAL_BROADCAST.accept("Finished Canvas config init in " + TimeUnit.MILLISECONDS.convert(Util.getNanos() - startNanos, TimeUnit.NANOSECONDS) + "ms");
     }
 
-    private static @NotNull @Unmodifiable ConfigSerializer<Config> buildGlobal(Configuration config, Class<Config> configClass) {
-        return new AnnotationBasedJson5Serializer.Json5Builder<Config>()
+    private static @NonNull @Unmodifiable ConfigSerializer<Config> buildGlobal(Configuration config, Class<Config> configClass) {
+        return new Json5SerializerImpl.Json5Builder<Config>()
             .header("""
                 This is the global Canvas configuration file.
                 All configuration options here are made for vanilla-compatibility by default
@@ -198,6 +199,12 @@ public class Config {
             "Enables the affinity scheduler to run intermediate tasks while waiting for the deadline of the currently owned tick"
         })
         public boolean enableMidTickTasks = false;
+
+        @Comment({
+            "The default tick rate for the scheduler. Vanilla is 20, the game will run faster or slower depending on how you adjust this value",
+            "Note this should really only be used for debugging purposes and for custom environments that require this change"
+        })
+        public float defaultTickRate = 20.0F;
     }
 
     public Chunks chunks = new Chunks();
@@ -220,6 +227,10 @@ public class Config {
             " - FILTERED - applies a rough filter to filter out fluids that are definitely not going to flow"
         })
         public FluidPostProcessingMode fluidPostProcessingMode = FluidPostProcessingMode.VANILLA;
+
+        public enum FluidPostProcessingMode {
+            VANILLA, DISABLED, FILTERED
+        }
 
         @Comment({
             "Whether to turn fluid postprocessing into scheduled tick",
@@ -296,6 +307,19 @@ public class Config {
 
         @Comment("This option makes protocol switching asynchronous, reducing global region blocking and improving login and configuration performance.")
         public boolean asyncProtocolSwitch = false;
+
+        @Comment("The maximum bytes that can be sent by the server in a single packet to a player before kicking them")
+        public int maximumPacketBytes = 8388608;
+
+        @Comment({
+        	"Paper implements an overflow fallback for container contents packets to the client, splitting the load into individual packets",
+        	"for each individual slot to prevent kicking the player for large containers. By enabling this, the server wont split the packet, and will",
+        	"kick the player if they attempt to open a container with the set contents packet larger than the max packet byte size"
+        })
+        public boolean disablePaperPacketOverflowContainerFix = false;
+
+        @Comment("The disconnet reason sent to the client when the server attempted to send a packet that was too large")
+        public String packetTooLargeDisconnectReason = "Clientbound packet exceeded max packet bytes";
     }
 
     @Comment("Check if a cactus can survive before growing. Heavily optimizes cacti farms")
@@ -485,6 +509,12 @@ public class Config {
     })
     public boolean enableTpsBar = true;
 
+    @Comment({
+        "MiniMessage-formatted line for the TPS bar. Placeholders: <tps>, <mspt>, <util>, <players>.",
+        "Legacy tokens %tps%, %mspt%, %util%, %players% are also accepted and auto-converted."
+    })
+    public String tpsBarFormat = RegionizedTpsBar.DEFAULT_FORMAT;
+
     @Comment(value = {
         "The default respawn dimension for the server.",
         "This can assist for servers that need this changed to a different world",
@@ -500,7 +530,7 @@ public class Config {
     @NamespacedKeyValidator.NamespacedKey
     public String defaultRespawnDimensionKey = "minecraft:overworld";
 
-    public ResourceKey<@NotNull Level> fetchRespawnDimensionKey() {
+    public ResourceKey<@NonNull Level> fetchRespawnDimensionKey() {
         return ResourceKey.create(Registries.DIMENSION, Identifier.parse(this.defaultRespawnDimensionKey));
     }
 
@@ -735,4 +765,10 @@ public class Config {
 
     @Comment("Restores Vanilla ender pearl behavior to match Paper, which is disabled in Folia.")
     public boolean restoreVanillaEnderPearlBehavior = false;
+
+    @Comment({
+        "Folia's portaling rewrite makes the world loading screen not display on the client, and shows more of an",
+        "empty void. With this option enabled, Canvas will make the client display this screen which can be more visually appealing"
+    })
+    public boolean displayWorldLoadScreenForPortaling = true;
 }
