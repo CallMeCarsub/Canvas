@@ -1,7 +1,6 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
-import io.papermc.paperweight.tasks.RebuildGitPatches
-import io.papermc.paperweight.tasks.RebuildBaseGitPatches
+import io.papermc.paperweight.core.tasks.patchroulette.AbstractPatchRouletteTask
 
 plugins {
     java
@@ -55,22 +54,21 @@ subprojects {
         maven(paperMavenPublicUrl)
     }
 
-    tasks.withType<AbstractArchiveTask>().configureEach {
-        isPreserveFileTimestamps = false
-        isReproducibleFileOrder = true
-    }
     tasks.withType<JavaCompile>().configureEach {
         options.encoding = Charsets.UTF_8.name()
         options.release = 21
         options.isFork = true
         options.compilerArgs.addAll(listOf("-Xlint:-deprecation", "-Xlint:-removal"))
     }
+
     tasks.withType<Javadoc>().configureEach {
         options.encoding = Charsets.UTF_8.name()
     }
+
     tasks.withType<ProcessResources>().configureEach {
         filteringCharset = Charsets.UTF_8.name()
     }
+
     tasks.withType<Test>().configureEach {
         testLogging {
             showStackTraces = true
@@ -78,6 +76,11 @@ subprojects {
             events(TestLogEvent.STANDARD_OUT)
         }
     }
+
+    tasks.withType<AbstractPatchRouletteTask>().configureEach {
+        endpoint = "https://patch-roulette.canvasmc.io/api"
+    }
+
     extensions.configure<PublishingExtension> {
         repositories {
             maven("https://maven.canvasmc.io/snapshots") {
@@ -120,7 +123,3 @@ tasks.register("createPublisherJar") {
     dependsOn(":canvas-server:createMojmapPublisherJar")
 }
 
-// TODO: remove me in 26.1
-tasks.register("cleanCreatePublisherJar") {
-    dependsOn(":canvas-server:cleanCreateMojmapPublisherJar")
-}
