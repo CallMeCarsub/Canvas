@@ -9,6 +9,19 @@
          this.chatMessageChain = new FutureChain(server.chatExecutor); // CraftBukkit - async chat
          this.tickEndEvent = new io.papermc.paper.event.packet.ClientTickEndEvent(player.getBukkitEntity()); // Paper - add client tick end event
          this.playerGameConnection =  new io.papermc.paper.connection.PaperPlayerGameConnection(this); // Paper
+@@ -1367,8 +_,10 @@
+         // Paper end - Book size limits
+         // CraftBukkit start
+         if (this.lastBookTick + 20 > this.lastTick) { // Folia - region threading
+-            this.disconnectAsync(Component.literal("Book edited too quickly!"), org.bukkit.event.player.PlayerKickEvent.Cause.ILLEGAL_ACTION); // Paper - kick event cause // Paper - add proper async disconnect
+-            return;
++            // SMPOnline - Disable stupid kick for this
++            ServerGamePacketListenerImpl.LOGGER.warn("{} may be editing a book too quickly. Last book tick: {} - Last tick: {}", this.player.getScoreboardName(), this.lastBookTick, this.lastTick);
++            //this.disconnectAsync(Component.literal("Book edited too quickly!"), org.bukkit.event.player.PlayerKickEvent.Cause.ILLEGAL_ACTION); // Paper - kick event cause // Paper - add proper async disconnect
++            //return;
+         }
+         this.lastBookTick = this.lastTick; // Folia - region threading
+         // CraftBukkit end
 @@ -2410,7 +_,7 @@
          command = event.getMessage().substring(1);
          // CraftBukkit end
