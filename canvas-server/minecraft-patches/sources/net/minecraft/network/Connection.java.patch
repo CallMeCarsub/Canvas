@@ -68,3 +68,16 @@
  
      public void setupOutboundProtocol(ProtocolInfo<?> protocolInfo) {
          if (protocolInfo.flow() != this.getSending()) {
+@@ -606,7 +_,11 @@
+         // Folia start - region threading
+         // handle disconnect requests, but only after flushQueue()
+         DisconnectReq disconnectReq;
+-        while ((disconnectReq = this.disconnectReqs.poll()) != null) {
++        // smponline - prevent endless disconnect pool
++        int max = this.disconnectReqs.size();
++        int i = 0;
++        while ((disconnectReq = this.disconnectReqs.poll()) != null && i < max) {
++            i++;
+             PacketListener packetlistener = this.packetListener;
+ 
+             if (packetlistener instanceof net.minecraft.server.network.ServerLoginPacketListenerImpl loginPacketListener) {
