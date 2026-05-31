@@ -39,9 +39,9 @@
          protected boolean shapeExceedsCube = true; // Paper - moved from actual method to here
          public void initCache() {
              this.fluidState = this.owner.getFluidState(this.asState());
-+            this.canvas$isWater = this.is(Blocks.WATER); // Canvas - optimize fluid pushing
++            this.canvas$isWater = this.fluidState.is(FluidTags.WATER); // Canvas - optimize fluid pushing
 +            this.canvas$isBubble = this.is(Blocks.BUBBLE_COLUMN); // Canvas - optimize fluid pushing
-+            this.canvas$isLava = this.is(Blocks.LAVA); // Canvas - optimize fluid pushing
++            this.canvas$isLava = this.fluidState.is(FluidTags.LAVA); // Canvas - optimize fluid pushing
              this.isRandomlyTicking = this.owner.isRandomlyTicking(this.asState());
              if (!this.getBlock().hasDynamicShape()) {
                  this.cache = new BlockBehaviour.BlockStateBase.Cache(this.asState());
