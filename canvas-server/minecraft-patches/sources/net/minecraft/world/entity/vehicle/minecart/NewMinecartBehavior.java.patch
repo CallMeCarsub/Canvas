@@ -1,0 +1,19 @@
+--- a/net/minecraft/world/entity/vehicle/minecart/NewMinecartBehavior.java
++++ b/net/minecraft/world/entity/vehicle/minecart/NewMinecartBehavior.java
+@@ -613,6 +_,7 @@
+     }
+ 
+     static class TrackIteration {
++        long giveUpTime = System.currentTimeMillis() + 100;
+         double movementLeft = 0.0;
+         boolean firstIteration = true;
+         boolean hasGainedSlopeSpeed = false;
+@@ -620,7 +_,7 @@
+         boolean hasBoosted = false;
+ 
+         public boolean shouldIterate() {
+-            return this.firstIteration || this.movementLeft > 1.0E-5F;
++            return (this.firstIteration || this.movementLeft > 1.0E-5F) && System.currentTimeMillis() < this.giveUpTime;
+         }
+     }
+ }
