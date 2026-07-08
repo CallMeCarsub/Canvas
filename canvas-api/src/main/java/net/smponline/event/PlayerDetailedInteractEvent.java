@@ -1,5 +1,6 @@
 package net.smponline.event;
 
+import io.papermc.paper.configuration.ServerConfiguration;
 import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -88,7 +89,8 @@ public class PlayerDetailedInteractEvent extends PlayerInteractEvent {
     @Override
     public void setCancelled(final boolean cancel) {
         if(cancel && this.interactionType == InteractionType.NOTHING){
-            Bukkit.getLogger().log(Level.WARNING, "Plugin made illegal attempt to cancel PlayerDetailedInteractEvent", new UnsupportedOperationException("Tried to cancel when itneractionType = NOTHING"));
+            // enable to debug
+            // Bukkit.getLogger().log(Level.WARNING, "Plugin made illegal attempt to cancel PlayerDetailedInteractEvent", new UnsupportedOperationException("Tried to cancel when itneractionType = NOTHING"));
             return;
         }
         this.cancelled = true;

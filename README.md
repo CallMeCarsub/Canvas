@@ -47,6 +47,7 @@ of optimizations and performance features for large scale servers.
 **Common build commands:**
 
 ```bash
+git config --global core.longpaths true # Required to be enabled, can be global or local. Will break if not enabled
 ./gradlew applyAllPatches # Applies all patches to construct the Canvas source
 ./gradlew createMojmapPublisherJar # Creates the publication jar used by our Jenkins CI
 ./gradlew runDevServer # Starts a development server locally

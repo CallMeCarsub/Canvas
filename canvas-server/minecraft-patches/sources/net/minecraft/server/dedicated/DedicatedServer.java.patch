@@ -1,9 +1,16 @@
 --- a/net/minecraft/server/dedicated/DedicatedServer.java
 +++ b/net/minecraft/server/dedicated/DedicatedServer.java
-@@ -260,6 +_,43 @@
+@@ -260,6 +_,50 @@
          // Paper start - initialize global and world-defaults configuration
          this.paperConfigurations.initializeGlobalConfiguration(this.registryAccess());
          this.paperConfigurations.initializeWorldDefaultsConfiguration(this.registryAccess());
++        // SMPOnline Canvas start - init block state cache
++        for (net.minecraft.world.level.block.Block block : net.minecraft.core.registries.BuiltInRegistries.BLOCK) {
++            for (net.minecraft.world.level.block.state.BlockState blockState : block.getStateDefinition().getPossibleStates()) {
++                blockState.initCanvasOptimizations();
++            }
++        }
++        // SMPOnline Canvas end
 +        // Canvas start - pre start server config hook
 +        // we have this here as a per-file patch since we might add more here
 +        io.canvasmc.canvas.Config.Containers containers = io.canvasmc.canvas.Config.INSTANCE.containers;
