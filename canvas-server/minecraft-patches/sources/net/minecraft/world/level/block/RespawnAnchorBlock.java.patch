@@ -1,0 +1,29 @@
+--- a/net/minecraft/world/level/block/RespawnAnchorBlock.java
++++ b/net/minecraft/world/level/block/RespawnAnchorBlock.java
+@@ -97,7 +_,7 @@
+             return InteractionResult.PASS;
+         } else if (level instanceof ServerLevel serverLevel) {
+             if (!canSetSpawn(serverLevel, pos)) {
+-                this.explode(state, serverLevel, pos);
++                this.explode(player, state, serverLevel, pos);
+                 return InteractionResult.SUCCESS_SERVER;
+             } else {
+                 if (player instanceof ServerPlayer serverPlayer) {
+@@ -151,7 +_,7 @@
+         }
+     }
+ 
+-    private void explode(BlockState state, ServerLevel level, final BlockPos pos2) {
++    private void explode(Player player, BlockState state, ServerLevel level, final BlockPos pos2) {
+         org.bukkit.block.BlockState blockState = org.bukkit.craftbukkit.block.CraftBlock.at(level, pos2).getState(); // CraftBukkit - capture BlockState before remove block
+         level.removeBlock(pos2, false);
+         boolean flag = Direction.Plane.HORIZONTAL.stream().map(pos2::relative).anyMatch(blockPos -> isWaterThatWouldFlow(blockPos, level));
+@@ -166,7 +_,7 @@
+         };
+         Vec3 center = pos2.getCenter();
+         level.explode(
+-            null, level.damageSources().badRespawnPointExplosion(center).causingBlockSnapshot(blockState), explosionDamageCalculator, center, 5.0F, true, Level.ExplosionInteraction.BLOCK // CraftBukkit - add state
++            null, level.damageSources().badRespawnPointExplosion(center).causingBlockSnapshot(blockState).eventEntityDamager(player), explosionDamageCalculator, center, 5.0F, true, Level.ExplosionInteraction.BLOCK // CraftBukkit - add state
+         );
+     }
+ 

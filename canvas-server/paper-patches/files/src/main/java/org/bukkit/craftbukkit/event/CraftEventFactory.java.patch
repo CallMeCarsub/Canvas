@@ -48,3 +48,16 @@
      public static EntityTransformEvent callEntityTransformEvent(net.minecraft.world.entity.LivingEntity original, net.minecraft.world.entity.LivingEntity converted, EntityTransformEvent.TransformReason transformReason) {
          return CraftEventFactory.callEntityTransformEvent(original, Collections.singletonList(converted), transformReason);
      }
+@@ -2154,6 +_,12 @@
+ 
+     public static BlockExplodeEvent callBlockExplodeEvent(Block block, BlockState state, List<Block> blocks, float yield, Explosion.BlockInteraction effect) {
+         BlockExplodeEvent event = new BlockExplodeEvent(block, state, blocks, yield, CraftExplosionResult.toExplosionResult(effect));
++        Bukkit.getPluginManager().callEvent(event);
++        return event;
++    }
++
++    public static net.smponline.event.PreExplodeEvent callPreExplodeEvent(org.bukkit.entity.Entity entity, Block block, BlockState state, List<Block> blocks, List<org.bukkit.entity.Entity> entities, float yield, boolean causeFire, Explosion.BlockInteraction effect) {
++        net.smponline.event.PreExplodeEvent event = new net.smponline.event.PreExplodeEvent(entity, block, state, blocks, entities, yield, causeFire, CraftExplosionResult.toExplosionResult(effect));
+         Bukkit.getPluginManager().callEvent(event);
+         return event;
+     }
