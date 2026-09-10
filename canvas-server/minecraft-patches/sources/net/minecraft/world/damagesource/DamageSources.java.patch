@@ -1,0 +1,13 @@
+--- a/net/minecraft/world/damagesource/DamageSources.java
++++ b/net/minecraft/world/damagesource/DamageSources.java
+@@ -260,8 +_,8 @@
+         return this.source(DamageTypes.SONIC_BOOM, entity);
+     }
+ 
+-    public DamageSource badRespawnPointExplosion(Vec3 position) {
+-        return new DamageSource(this.damageTypes.getOrThrow(DamageTypes.BAD_RESPAWN_POINT), position);
++    public DamageSource badRespawnPointExplosion(Entity causing, Vec3 position) {
++        return new DamageSource(this.damageTypes.getOrThrow(DamageTypes.BAD_RESPAWN_POINT), null, causing, position);
+     }
+ 
+     public DamageSource outOfBorder() {

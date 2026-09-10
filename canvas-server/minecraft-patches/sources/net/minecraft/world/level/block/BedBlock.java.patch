@@ -1,0 +1,42 @@
+--- a/net/minecraft/world/level/block/BedBlock.java
++++ b/net/minecraft/world/level/block/BedBlock.java
+@@ -100,10 +_,10 @@
+                 }
+ 
+                 Vec3 center = pos.getCenter();
+-                level.explode(null, level.damageSources().badRespawnPointExplosion(center), null, center, 5.0F, true, Level.ExplosionInteraction.BLOCK);
++                level.explode(null, level.damageSources().badRespawnPointExplosion(player, center), null, center, 5.0F, true, Level.ExplosionInteraction.BLOCK);
+                 return InteractionResult.SUCCESS_SERVER;
+             } else if (state.getValue(OCCUPIED)) {
+-                if (bedRule.explodes()) return this.explodeBed(state, level, pos); // Paper - check explode first
++                if (bedRule.explodes()) return this.explodeBed(player, state, level, pos); // Paper - check explode first
+                 if (!this.kickVillagerOutOfBed(level, pos)) {
+                     player.displayClientMessage(Component.translatable("block.minecraft.bed.occupied"), true);
+                 }
+@@ -127,7 +_,7 @@
+                         // Paper end - PlayerBedFailEnterEvent
+                         // CraftBukkit start - handling bed explosion from below here
+                         if (event.getWillExplode()) { // Paper - PlayerBedFailEnterEvent
+-                            this.explodeBed(finalBlockState, level, finalBlockPos);
++                            this.explodeBed(player, finalBlockState, level, finalBlockPos);
+                         }
+                         // CraftBukkit end
+                         // Paper start - PlayerBedFailEnterEvent
+@@ -144,7 +_,7 @@
+     }
+ 
+     // CraftBukkit start - Copied from the above method
+-    private InteractionResult explodeBed(BlockState state, Level level, BlockPos pos) {
++    private InteractionResult explodeBed(Player player, BlockState state, Level level, BlockPos pos) {
+         org.bukkit.block.BlockState blockState = org.bukkit.craftbukkit.block.CraftBlock.at(level, pos).getState(); // CraftBukkit - capture BlockState before remove block
+         level.removeBlock(pos, false);
+         BlockPos blockPos = pos.relative(state.getValue(FACING).getOpposite());
+@@ -153,7 +_,7 @@
+         }
+ 
+         Vec3 center = pos.getCenter();
+-        level.explode(null, level.damageSources().badRespawnPointExplosion(center).causingBlockSnapshot(blockState), null, center, 5.0F, true, Level.ExplosionInteraction.BLOCK); // CraftBukkit - add state
++        level.explode(null, level.damageSources().badRespawnPointExplosion(player, center).causingBlockSnapshot(blockState), null, center, 5.0F, true, Level.ExplosionInteraction.BLOCK); // CraftBukkit - add state
+         return InteractionResult.SUCCESS_SERVER;
+     }
+     // CraftBukkit end

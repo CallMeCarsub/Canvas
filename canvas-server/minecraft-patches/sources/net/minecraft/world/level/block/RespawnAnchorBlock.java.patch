@@ -23,7 +23,7 @@
          Vec3 center = pos2.getCenter();
          level.explode(
 -            null, level.damageSources().badRespawnPointExplosion(center).causingBlockSnapshot(blockState), explosionDamageCalculator, center, 5.0F, true, Level.ExplosionInteraction.BLOCK // CraftBukkit - add state
-+            null, level.damageSources().badRespawnPointExplosion(center).causingBlockSnapshot(blockState).eventEntityDamager(player), explosionDamageCalculator, center, 5.0F, true, Level.ExplosionInteraction.BLOCK // CraftBukkit - add state
++            null, level.damageSources().badRespawnPointExplosion(player, center).causingBlockSnapshot(blockState), explosionDamageCalculator, center, 5.0F, true, Level.ExplosionInteraction.BLOCK // CraftBukkit - add state
          );
      }
  
