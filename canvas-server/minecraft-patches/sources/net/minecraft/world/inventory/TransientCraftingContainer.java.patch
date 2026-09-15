@@ -1,0 +1,11 @@
+--- a/net/minecraft/world/inventory/TransientCraftingContainer.java
++++ b/net/minecraft/world/inventory/TransientCraftingContainer.java
+@@ -14,7 +_,7 @@
+     private final AbstractContainerMenu menu;
+ 
+     // CraftBukkit start - add fields
+-    public List<org.bukkit.entity.HumanEntity> transaction = new java.util.ArrayList<>();
++    public List<org.bukkit.entity.HumanEntity> transaction = new java.util.concurrent.CopyOnWriteArrayList<>(); // SMPOnline - fix sync issue, use copy-on-write since this isn't critical
+     private net.minecraft.world.item.crafting.RecipeHolder<net.minecraft.world.item.crafting.CraftingRecipe> currentRecipe;
+     public net.minecraft.world.Container resultInventory;
+     private Player owner;
