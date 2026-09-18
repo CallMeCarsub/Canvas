@@ -131,7 +131,7 @@
  
          List<org.bukkit.block.Block> bukkitBlocks;
  
-@@ -639,14 +_,72 @@
+@@ -639,14 +_,74 @@
          this.mutablePos = new BlockPos.MutableBlockPos();
          // Paper end - collision optimisations
          this.level.gameEvent(this.source, GameEvent.EXPLODE, this.center);
@@ -194,8 +194,10 @@
 +            // reset blocks to sane list
 +            blocks.clear();
 +            blockList = preExplodeEvent.getAffectedBlocks();
-+            for (org.bukkit.block.Block bblock : blockList) {
-+                blocks.add(((org.bukkit.craftbukkit.block.CraftBlock) bblock).getPosition());
++            if(blockList != null) {
++                for (org.bukkit.block.Block bblock : blockList) {
++                    blocks.add(((org.bukkit.craftbukkit.block.CraftBlock) bblock).getPosition());
++                }
 +            }
 +
 +
