@@ -132,19 +132,20 @@
              BlockPos blockPos = this.findLightningTargetAround(this.getBlockRandomPos(minBlockX, 0, minBlockZ, 15));
              if (this.isRainingAt(blockPos)) {
                  DifficultyInstance currentDifficultyAt = this.getCurrentDifficultyAt(blockPos);
-@@ -1139,6 +_,16 @@
+@@ -1139,6 +_,17 @@
      public void tickPrecipitation(BlockPos pos) {
          BlockPos heightmapPos = this.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING, pos);
          BlockPos blockPos = heightmapPos.below();
 +        // Canvas start - optimize precipitation
 +        BlockState heighestBlockState = this.getBlockState(blockPos);
-+        /*if (
-+            !(
-+                (heighestBlockState.tagFlag & io.canvasmc.canvas.world.block.BlockTags.WATER) != 0 && heighestBlockState.getBlock() instanceof net.minecraft.world.level.block.LiquidBlock
-+            ) || !this.isRaining()
++        if (
++            //!( // SMPOnline - this doesn't work, disabling it
++            //    (heighestBlockState.tagFlag & io.canvasmc.canvas.world.block.BlockTags.WATER) != 0 && heighestBlockState.getBlock() instanceof net.minecraft.world.level.block.LiquidBlock
++            //) || !this.isRaining()
++            !this.isRaining()
 +        ) {
 +            return;
-+        }*/ // SMPOnline - this doesn't work, disabling it
++        }
 +        // Canvas end - optimize precipitation
          Biome biome = this.getBiome(heightmapPos).value();
          if (biome.shouldFreeze(this, blockPos)) {
