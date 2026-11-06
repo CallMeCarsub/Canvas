@@ -138,13 +138,13 @@
          BlockPos blockPos = heightmapPos.below();
 +        // Canvas start - optimize precipitation
 +        BlockState heighestBlockState = this.getBlockState(blockPos);
-+        if (
++        /*if (
 +            !(
 +                (heighestBlockState.tagFlag & io.canvasmc.canvas.world.block.BlockTags.WATER) != 0 && heighestBlockState.getBlock() instanceof net.minecraft.world.level.block.LiquidBlock
 +            ) || !this.isRaining()
 +        ) {
 +            return;
-+        }
++        }*/ // SMPOnline - this doesn't work, disabling it
 +        // Canvas end - optimize precipitation
          Biome biome = this.getBiome(heightmapPos).value();
          if (biome.shouldFreeze(this, blockPos)) {
